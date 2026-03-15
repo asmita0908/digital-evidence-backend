@@ -1,0 +1,74 @@
+const express = require("express");
+const router = express.Router();
+const User = require("../models/User");
+const {
+  generateAccessToken,
+  generateRefreshToken,
+} = require("../utils/generateTokens");
+
+// ===============================
+// REGISTER
+// ===============================
+router.post("/register", async (req, res) => {
+  const { name, email, password, role } = req.body;
+
+  const userExists = await User.findOne({ email });
+  if (userExists)
+    return res.status(400).json({ message: "User already exists" });
+
+  const user = await User.create({
+    name,
+    email,
+    password,
+    role
+  });
+
+  res.status(201).json({
+    message: "User registered successfully"
+  });
+});
+
+// ===============================
+// LOGIN
+// ===============================
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await User.findOne({ email });
+  if (!user || !(await user.matchPassword(password))) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const accessToken = generateAccessToken(user._id, user.role);
+  const refreshToken = generateRefreshToken(user._id);
+
+  user.refreshToken = refreshToken;
+  await user.save();
+
+  res.json({
+    accessToken,
+    refreshToken,
+    role: user.role,
+    is2FAEnabled: user.is2FAEnabled
+  });
+});
+
+// ===============================
+// REFRESH TOKEN
+// ===============================
+router.post("/refresh", async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken)
+    return res.status(401).json({ message: "No token" });
+
+  const user = await User.findOne({ refreshToken });
+  if (!user)
+    return res.status(403).json({ message: "Invalid refresh token" });
+
+  const accessToken = generateAccessToken(user._id, user.role);
+
+  res.json({ accessToken });
+});
+
+module.exports = router;

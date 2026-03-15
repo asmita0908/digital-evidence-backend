@@ -1,0 +1,303 @@
+const Evidence = require("../models/Evidence");
+const Log = require("../models/Log");
+const Custody = require("../models/Custody");
+const Case = require("../models/Case");
+
+const crypto = require("crypto");
+const fs = require("fs");
+const PDFDocument = require("pdfkit");
+
+
+// ===============================
+// Upload Evidence
+// ===============================
+
+exports.uploadEvidence = async (req,res)=>{
+
+try{
+
+const io = req.app.get("io");
+
+const {title,description,caseId} = req.body;
+
+const filePath = req.file.path;
+
+const fileBuffer = fs.readFileSync(filePath);
+
+const fileHash = crypto
+.createHash("sha256")
+.update(fileBuffer)
+.digest("hex");
+
+const evidence = await Evidence.create({
+
+title,
+description,
+fileUrl:filePath,
+filePath,
+fileHash,
+uploadedBy:req.user.id,
+case:caseId
+
+});
+
+if(caseId){
+
+await Case.findByIdAndUpdate(caseId,{
+$push:{evidences:evidence._id}
+});
+
+}
+
+await Log.create({
+action:"Evidence Uploaded",
+user:req.user.id,
+evidence:evidence._id
+});
+
+await Custody.create({
+action:"Evidence Uploaded",
+user:req.user.id,
+evidence:evidence._id
+});
+
+
+// REALTIME EVENT
+io.emit("evidenceActivity",{
+type:"UPLOAD",
+message:"New Evidence Uploaded",
+evidenceId:evidence._id
+});
+
+res.json({
+message:"Evidence Uploaded Successfully",
+evidence
+});
+
+}catch(err){
+
+console.log(err);
+
+res.status(500).json({
+message:"Upload Failed"
+});
+
+}
+
+};
+
+
+// ===============================
+// Search Evidence
+// ===============================
+
+exports.searchEvidence = async (req,res)=>{
+
+try{
+
+const keyword = req.query.keyword;
+
+const evidences = await Evidence.find({
+$or:[
+{title:{$regex:keyword,$options:"i"}},
+{description:{$regex:keyword,$options:"i"}}
+]
+});
+
+res.json(evidences);
+
+}catch(err){
+
+res.status(500).json({
+message:"Search failed"
+});
+
+}
+
+};
+
+
+// ===============================
+// Verify Evidence
+// ===============================
+
+exports.verifyEvidence = async (req,res)=>{
+
+try{
+
+const io = req.app.get("io");
+
+const evidence = await Evidence.findById(req.params.id);
+
+if(!evidence){
+
+return res.status(404).json({
+message:"Evidence not found"
+});
+
+}
+
+const fileBuffer = fs.readFileSync(evidence.filePath);
+
+const newHash = crypto
+.createHash("sha256")
+.update(fileBuffer)
+.digest("hex");
+
+if(newHash !== evidence.fileHash){
+
+evidence.isTampered=true;
+await evidence.save();
+
+await Log.create({
+action:"Evidence Tampered",
+user:req.user.id,
+evidence:evidence._id
+});
+
+await Custody.create({
+action:"Tamper Detected",
+user:req.user.id,
+evidence:evidence._id
+});
+
+io.emit("evidenceActivity",{
+type:"TAMPER",
+message:"Evidence Tampered",
+evidenceId:evidence._id
+});
+
+return res.json({
+tampered:true,
+message:"⚠ Evidence Tampered"
+});
+
+}
+
+res.json({
+tampered:false,
+message:"Evidence Safe"
+});
+
+}catch(err){
+
+res.status(500).json({
+message:"Verification Failed"
+});
+
+}
+
+};
+
+
+// ===============================
+// Download Evidence
+// ===============================
+
+exports.downloadEvidence = async (req,res)=>{
+
+try{
+
+const io = req.app.get("io");
+
+const evidence = await Evidence.findById(req.params.id);
+
+await Log.create({
+action:"Evidence Downloaded",
+user:req.user.id,
+evidence:evidence._id
+});
+
+await Custody.create({
+action:"Evidence Downloaded",
+user:req.user.id,
+evidence:evidence._id
+});
+
+io.emit("evidenceActivity",{
+type:"DOWNLOAD",
+message:"Evidence Downloaded",
+evidenceId:evidence._id
+});
+
+res.download(evidence.filePath);
+
+}catch(err){
+
+res.status(500).json({
+message:"Download failed"
+});
+
+}
+
+};
+
+
+// ===============================
+// Certificate
+// ===============================
+
+exports.generateCertificate = async (req,res)=>{
+
+try{
+
+const evidence = await Evidence.findById(req.params.id)
+.populate("uploadedBy","name email");
+
+const doc = new PDFDocument();
+
+res.setHeader("Content-Type","application/pdf");
+
+res.setHeader(
+"Content-Disposition",
+"attachment; filename=evidence_certificate.pdf"
+);
+
+doc.pipe(res);
+
+doc.fontSize(22).text("Evidence Verification Certificate");
+
+doc.moveDown();
+
+doc.text(`Evidence ID: ${evidence._id}`);
+doc.text(`Title: ${evidence.title}`);
+doc.text(`Hash: ${evidence.fileHash}`);
+doc.text(`Uploaded By: ${evidence.uploadedBy.name}`);
+doc.text(`Verification Date: ${new Date()}`);
+
+doc.end();
+
+}catch(err){
+
+res.status(500).json({
+message:"Certificate generation failed"
+});
+
+}
+
+};
+// ===============================
+// Get All Evidence
+// ===============================
+
+exports.getAllEvidence = async (req,res)=>{
+
+try{
+
+const evidences = await Evidence.find()
+.populate("uploadedBy","name email")
+.populate("case","caseNumber title");
+
+res.json(evidences);
+
+}catch(err){
+
+console.log(err);
+
+res.status(500).json({
+message:"Error fetching evidence"
+});
+
+}
+
+};
