@@ -53,6 +53,7 @@ exports.login = async (req, res) => {
     res.json({
       message: "Login successful",
       token: generateToken(user._id, user.role),
+      role: user.role   // ✅ IMPORTANT ADD THIS
     });
 
   } catch (error) {
