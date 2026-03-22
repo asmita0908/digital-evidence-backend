@@ -12,80 +12,71 @@ const PDFDocument = require("pdfkit");
 // Upload Evidence
 // ===============================
 
-exports.uploadEvidence = async (req,res)=>{
+exports.uploadEvidence = async (req, res) => {
+  try {
+    const io = req.app.get("io");
 
-try{
+    const { title, description, caseId } = req.body;
 
-const io = req.app.get("io");
+    const filePath = req.file.path;
 
-const {title,description,caseId} = req.body;
+    // ✅ PUBLIC URL (VERY IMPORTANT)
+    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
-const filePath = req.file.path;
+    const fileBuffer = fs.readFileSync(filePath);
 
-const fileBuffer = fs.readFileSync(filePath);
+    const fileHash = crypto
+      .createHash("sha256")
+      .update(fileBuffer)
+      .digest("hex");
 
-const fileHash = crypto
-.createHash("sha256")
-.update(fileBuffer)
-.digest("hex");
+    const evidence = await Evidence.create({
+      title,
+      description,
+      fileUrl,       // ✅ FIXED
+      filePath,
+      fileHash,
+      uploadedBy: req.user.id,
+      case: caseId
+    });
 
-const evidence = await Evidence.create({
+    if (caseId) {
+      await Case.findByIdAndUpdate(caseId, {
+        $push: { evidences: evidence._id }
+      });
+    }
 
-title,
-description,
-fileUrl:filePath,
-filePath,
-fileHash,
-uploadedBy:req.user.id,
-case:caseId
+    await Log.create({
+      action: "Evidence Uploaded",
+      user: req.user.id,
+      evidence: evidence._id
+    });
 
-});
+    await Custody.create({
+      action: "Evidence Uploaded",
+      user: req.user.id,
+      evidence: evidence._id
+    });
 
-if(caseId){
+    io.emit("evidenceActivity", {
+      type: "UPLOAD",
+      message: "New Evidence Uploaded",
+      evidenceId: evidence._id
+    });
 
-await Case.findByIdAndUpdate(caseId,{
-$push:{evidences:evidence._id}
-});
+    res.json({
+      message: "Evidence Uploaded Successfully",
+      evidence
+    });
 
-}
+  } catch (err) {
+    console.log(err);
 
-await Log.create({
-action:"Evidence Uploaded",
-user:req.user.id,
-evidence:evidence._id
-});
-
-await Custody.create({
-action:"Evidence Uploaded",
-user:req.user.id,
-evidence:evidence._id
-});
-
-
-// REALTIME EVENT
-io.emit("evidenceActivity",{
-type:"UPLOAD",
-message:"New Evidence Uploaded",
-evidenceId:evidence._id
-});
-
-res.json({
-message:"Evidence Uploaded Successfully",
-evidence
-});
-
-}catch(err){
-
-console.log(err);
-
-res.status(500).json({
-message:"Upload Failed"
-});
-
-}
-
+    res.status(500).json({
+      message: "Upload Failed"
+    });
+  }
 };
-
 
 // ===============================
 // Search Evidence
