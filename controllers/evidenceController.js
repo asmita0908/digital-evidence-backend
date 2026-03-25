@@ -112,72 +112,52 @@ message:"Search failed"
 // Verify Evidence
 // ===============================
 
-exports.verifyEvidence = async (req,res)=>{
+exports.verifyEvidence = async (req, res) => {
+  try {
+    const evidence = await Evidence.findById(req.params.id);
 
-try{
+    if (!evidence) {
+      return res.status(404).json({
+        message: "Evidence not found"
+      });
+    }
 
-const io = req.app.get("io");
+    // ❗ SAFE CHECK
+    if (!fs.existsSync(evidence.filePath)) {
+      return res.status(400).json({
+        message: "File missing"
+      });
+    }
 
-const evidence = await Evidence.findById(req.params.id);
+    const fileBuffer = fs.readFileSync(evidence.filePath);
 
-if(!evidence){
+    const newHash = crypto
+      .createHash("sha256")
+      .update(fileBuffer)
+      .digest("hex");
 
-return res.status(404).json({
-message:"Evidence not found"
-});
+    let tampered = false;
 
-}
+    if (newHash !== evidence.fileHash) {
+      evidence.isTampered = true;
+      tampered = true;
+    } else {
+      evidence.isTampered = false;
+    }
 
-const fileBuffer = fs.readFileSync(evidence.filePath);
+    await evidence.save();
 
-const newHash = crypto
-.createHash("sha256")
-.update(fileBuffer)
-.digest("hex");
+    res.json({
+      tampered,
+      message: tampered ? "Tampered ❌" : "Safe ✅"
+    });
 
-if(newHash !== evidence.fileHash){
-
-evidence.isTampered=true;
-await evidence.save();
-
-await Log.create({
-action:"Evidence Tampered",
-user:req.user.id,
-evidence:evidence._id
-});
-
-await Custody.create({
-action:"Tamper Detected",
-user:req.user.id,
-evidence:evidence._id
-});
-
-io.emit("evidenceActivity",{
-type:"TAMPER",
-message:"Evidence Tampered",
-evidenceId:evidence._id
-});
-
-return res.json({
-tampered:true,
-message:"⚠ Evidence Tampered"
-});
-
-}
-
-res.json({
-tampered:false,
-message:"Evidence Safe"
-});
-
-}catch(err){
-
-res.status(500).json({
-message:"Verification Failed"
-});
-
-}
-
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({
+      message: "Verification Failed"
+    });
+  }
 };
 
 
@@ -291,4 +271,24 @@ message:"Error fetching evidence"
 
 }
 
+};
+exports.deleteEvidence = async (req, res) => {
+  try {
+    const evidence = await Evidence.findById(req.params.id);
+
+    if (!evidence) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    if (fs.existsSync(evidence.filePath)) {
+      fs.unlinkSync(evidence.filePath);
+    }
+
+    await evidence.deleteOne();
+
+    res.json({ message: "Deleted successfully" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Delete failed" });
+  }
 };

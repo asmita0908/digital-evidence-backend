@@ -65,8 +65,6 @@ router.get(
 // Download Evidence
 router.get(
   "/download/:id",
-  protect,
-  allowRoles("admin", "officer", "forensic", "viewer"),
   evidenceController.downloadEvidence
 );
 
