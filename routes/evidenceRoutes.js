@@ -54,17 +54,19 @@ router.get(
   evidenceController.searchEvidence
 );
 
-// Verify Evidence
+// ✅ VERIFY FIX (officer added)
 router.get(
   "/verify/:id",
   protect,
-  allowRoles("admin", "forensic"),
+  allowRoles("admin", "forensic", "officer"),
   evidenceController.verifyEvidence
 );
 
-// Download Evidence
+// ✅ DOWNLOAD FIX (protection added)
 router.get(
   "/download/:id",
+  protect,
+  allowRoles("admin", "officer", "forensic", "viewer"),
   evidenceController.downloadEvidence
 );
 
