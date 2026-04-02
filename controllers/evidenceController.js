@@ -18,7 +18,7 @@ exports.uploadEvidence = async (req, res) => {
 
     const { title, description, caseId } = req.body;
 
-    const filePath = req.file.path;
+    const filePath = req.file.path.replace(/\\/g, "/");
 
     // ✅ PUBLIC URL (VERY IMPORTANT)
     const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
@@ -165,42 +165,57 @@ exports.verifyEvidence = async (req, res) => {
 // Download Evidence
 // ===============================
 
-exports.downloadEvidence = async (req,res)=>{
+exports.downloadEvidence = async (req, res) => {
+  try {
+    const io = req.app.get("io");
 
-try{
+    const evidence = await Evidence.findById(req.params.id);
 
-const io = req.app.get("io");
+    if (!evidence) {
+      return res.status(404).json({
+        message: "Evidence not found"
+      });
+    }
 
-const evidence = await Evidence.findById(req.params.id);
+    // ✅ FIX: Absolute path banana
+    const filePath = evidence.filePath;
 
-await Log.create({
-action:"Evidence Downloaded",
-user:req.user.id,
-evidence:evidence._id
-});
+    // ✅ FIX: file exist check
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({
+        message: "File not found on server"
+      });
+    }
 
-await Custody.create({
-action:"Evidence Downloaded",
-user:req.user.id,
-evidence:evidence._id
-});
+    // ✅ logs
+    await Log.create({
+      action: "Evidence Downloaded",
+      user: req.user.id,
+      evidence: evidence._id
+    });
 
-io.emit("evidenceActivity",{
-type:"DOWNLOAD",
-message:"Evidence Downloaded",
-evidenceId:evidence._id
-});
+    await Custody.create({
+      action: "Evidence Downloaded",
+      user: req.user.id,
+      evidence: evidence._id
+    });
 
-res.download(evidence.filePath);
+    io.emit("evidenceActivity", {
+      type: "DOWNLOAD",
+      message: "Evidence Downloaded",
+      evidenceId: evidence._id
+    });
 
-}catch(err){
+    // ✅ FINAL DOWNLOAD
+    res.download(filePath);
 
-res.status(500).json({
-message:"Download failed"
-});
+  } catch (err) {
+    console.log(err);
 
-}
-
+    res.status(500).json({
+      message: "Download failed"
+    });
+  }
 };
 
 
