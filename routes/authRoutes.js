@@ -48,7 +48,7 @@ router.post("/register", async (req, res) => {
 
 
 // ======================================
-// 🔐 LOGIN
+// 🔐 LOGIN (🔥 FIXED)
 // ======================================
 router.post("/login", async (req, res) => {
   try {
@@ -72,7 +72,7 @@ router.post("/login", async (req, res) => {
       });
     }
 
-    // अगर 2FA enabled है
+    // 2FA check
     if (user.is2FAEnabled) {
       return res.json({
         status: "success",
@@ -87,11 +87,19 @@ router.post("/login", async (req, res) => {
     user.refreshToken = refreshToken;
     await user.save();
 
+    // 🔥 FINAL RESPONSE (IMPORTANT)
     res.json({
       status: "success",
-      accessToken,
+      token: accessToken,   // ✅ renamed
       refreshToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role     // ✅ real role
+      }
     });
+
   } catch (error) {
     res.status(500).json({
       status: "error",
@@ -125,7 +133,7 @@ router.post("/refresh", async (req, res) => {
     const accessToken = generateAccessToken(user._id, user.role);
 
     res.json({
-      accessToken,
+      token: accessToken,
     });
 
   } catch (error) {
@@ -140,15 +148,11 @@ router.post("/refresh", async (req, res) => {
 // 🔐 GENERATE 2FA
 // ======================================
 router.post("/generate-2fa/:id", async (req, res) => {
-
   const user = await User.findById(req.params.id);
 
-  const secret = speakeasy.generateSecret({
-    length: 20,
-  });
+  const secret = speakeasy.generateSecret({ length: 20 });
 
   user.twoFactorSecret = secret.base32;
-
   await user.save();
 
   const qrCode = await QRCode.toDataURL(secret.otpauth_url);
@@ -165,7 +169,6 @@ router.post("/generate-2fa/:id", async (req, res) => {
 // 🔑 VERIFY 2FA
 // ======================================
 router.post("/verify-2fa/:id", async (req, res) => {
-
   const { token } = req.body;
 
   const user = await User.findById(req.params.id);
@@ -184,14 +187,13 @@ router.post("/verify-2fa/:id", async (req, res) => {
   }
 
   user.is2FAEnabled = true;
-
   await user.save();
 
   const accessToken = generateAccessToken(user._id, user.role);
   const refreshToken = generateRefreshToken(user._id);
 
   res.json({
-    accessToken,
+    token: accessToken,
     refreshToken,
   });
 });
