@@ -55,7 +55,8 @@ router.get(
 );
 
 // ✅ VERIFY FIX (officer added)
-router.get(
+// ✅ NEW
+router.put(
   "/verify/:id",
   protect,
   allowRoles("admin", "forensic", "officer"),
