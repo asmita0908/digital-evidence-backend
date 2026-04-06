@@ -78,5 +78,10 @@ router.get(
   allowRoles("admin", "officer", "forensic"),
   evidenceController.generateCertificate
 );
-
+router.get(
+  "/case/:caseId",
+  protect,
+  allowRoles("admin", "officer", "forensic", "viewer"),
+  evidenceController.getEvidenceByCase
+);
 module.exports = router;

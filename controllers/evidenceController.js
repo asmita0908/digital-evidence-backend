@@ -12,15 +12,18 @@ const PDFDocument = require("pdfkit");
 // Upload Evidence
 // ===============================
 
-exports.uploadEvidence = async (req, res) => {
+eexports.uploadEvidence = async (req, res) => {
   try {
-    const io = req.app.get("io");
-
     const { title, description, caseId } = req.body;
+
+    if (!caseId) {
+      return res.status(400).json({
+        message: "Case ID required ❌"
+      });
+    }
 
     const filePath = req.file.path.replace(/\\/g, "/");
 
-    // ✅ PUBLIC URL (VERY IMPORTANT)
     const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
     const fileBuffer = fs.readFileSync(filePath);
@@ -33,51 +36,28 @@ exports.uploadEvidence = async (req, res) => {
     const evidence = await Evidence.create({
       title,
       description,
-      fileUrl,       // ✅ FIXED
+      fileUrl,
       filePath,
       fileHash,
       uploadedBy: req.user.id,
       case: caseId
     });
 
-    if (caseId) {
-      await Case.findByIdAndUpdate(caseId, {
-        $push: { evidences: evidence._id }
-      });
-    }
-
-    await Log.create({
-      action: "Evidence Uploaded",
-      user: req.user.id,
-      evidence: evidence._id
-    });
-
-    await Custody.create({
-      action: "Evidence Uploaded",
-      user: req.user.id,
-      evidence: evidence._id
-    });
-
-    io.emit("evidenceActivity", {
-      type: "UPLOAD",
-      message: "New Evidence Uploaded",
-      evidenceId: evidence._id
+    // 🔥 CASE LINK
+    await Case.findByIdAndUpdate(caseId, {
+      $push: { evidences: evidence._id }
     });
 
     res.json({
-      message: "Evidence Uploaded Successfully",
+      message: "Evidence Uploaded",
       evidence
     });
 
   } catch (err) {
     console.log(err);
-
-    res.status(500).json({
-      message: "Upload Failed"
-    });
+    res.status(500).json({ message: "Upload failed" });
   }
 };
-
 // ===============================
 // Search Evidence
 // ===============================
@@ -305,5 +285,17 @@ exports.deleteEvidence = async (req, res) => {
 
   } catch (err) {
     res.status(500).json({ message: "Delete failed" });
+  }
+};
+exports.getEvidenceByCase = async (req, res) => {
+  try {
+    const { caseId } = req.params;
+
+    const data = await Evidence.find({ case: caseId });
+
+    res.json(data);
+
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching case evidence" });
   }
 };
