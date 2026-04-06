@@ -12,7 +12,7 @@ const PDFDocument = require("pdfkit");
 // Upload Evidence
 // ===============================
 
-eexports.uploadEvidence = async (req, res) => {
+exports.uploadEvidence = async (req, res) => {
   try {
     const { title, description, caseId } = req.body;
 
