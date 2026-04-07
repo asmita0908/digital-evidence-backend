@@ -2,30 +2,21 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 
-// ❌ REMOVE local storage wala path + fs
-// const path = require("path");
-// const fs = require("fs");
-
-// ✅ MODEL
 const Evidence = require("../models/Evidence");
-
-// ✅ CONTROLLER
 const evidenceController = require("../controllers/evidenceController");
 
-// ✅ MIDDLEWARE
 const { protect } = require("../middleware/authMiddleware");
 const { allowRoles } = require("../middleware/roleMiddleware");
 
-// ================= CLOUDINARY SETUP =================
+// ================= CLOUDINARY =================
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const cloudinary = require("../config/cloudinary");
 
-// 🔥 CLOUD STORAGE (FINAL)
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "evidence_files",   // Cloudinary folder
-    resource_type: "auto"       // image, video, pdf sab support
+    folder: "evidence_files",
+    resource_type: "auto"
   }
 });
 
@@ -33,7 +24,7 @@ const upload = multer({ storage });
 
 // ================= ROUTES =================
 
-// 🔹 Upload Evidence
+// Upload
 router.post(
   "/upload",
   protect,
@@ -42,7 +33,7 @@ router.post(
   evidenceController.uploadEvidence
 );
 
-// 🔹 Get All Evidence
+// Get All
 router.get(
   "/all",
   protect,
@@ -50,7 +41,7 @@ router.get(
   evidenceController.getAllEvidence
 );
 
-// 🔹 Search (keyword)
+// Search ✅
 router.get(
   "/search",
   protect,
@@ -58,26 +49,15 @@ router.get(
   evidenceController.searchEvidence
 );
 
-// 🔹 Get Evidence by Case ID (🔥 MAIN FEATURE)
+// Case-wise evidence ✅ (FIXED)
 router.get(
   "/case/:caseId",
   protect,
   allowRoles("admin", "officer", "forensic", "viewer"),
-  async (req, res) => {
-    try {
-      const evidences = await Evidence.find({ case: req.params.caseId })
-        .populate("uploadedBy", "name")
-        .populate("case", "title");
-
-      res.json(evidences);
-    } catch (err) {
-      console.log(err);
-      res.status(500).json({ message: "Error fetching case evidence" });
-    }
-  }
+  evidenceController.getEvidenceByCase
 );
 
-// 🔹 Verify Evidence
+// Verify
 router.put(
   "/verify/:id",
   protect,
@@ -85,7 +65,7 @@ router.put(
   evidenceController.verifyEvidence
 );
 
-// 🔹 Download Evidence
+// Download
 router.get(
   "/download/:id",
   protect,
@@ -93,7 +73,7 @@ router.get(
   evidenceController.downloadEvidence
 );
 
-// 🔹 Certificate
+// Certificate
 router.get(
   "/certificate/:id",
   protect,

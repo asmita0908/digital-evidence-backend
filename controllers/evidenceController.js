@@ -198,3 +198,43 @@ exports.getAllEvidence = async (req, res) => {
     });
   }
 };
+// ===============================
+// Search Evidence ✅ (MISSING FIX)
+// ===============================
+exports.searchEvidence = async (req, res) => {
+  try {
+    const keyword = req.query.keyword;
+
+    const evidences = await Evidence.find({
+      $or: [
+        { title: { $regex: keyword, $options: "i" } },
+        { description: { $regex: keyword, $options: "i" } }
+      ]
+    });
+
+    res.json(evidences);
+
+  } catch (err) {
+    res.status(500).json({
+      message: "Search failed"
+    });
+  }
+};
+
+// ===============================
+// Get Evidence By Case ✅ (BEST PRACTICE)
+// ===============================
+exports.getEvidenceByCase = async (req, res) => {
+  try {
+    const evidences = await Evidence.find({ case: req.params.caseId })
+      .populate("uploadedBy", "name")
+      .populate("case", "title");
+
+    res.json(evidences);
+
+  } catch (err) {
+    res.status(500).json({
+      message: "Error fetching case evidence"
+    });
+  }
+};
