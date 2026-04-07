@@ -1,30 +1,31 @@
 const express = require("express");
 const router = express.Router();
 const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
 
-// ✅ IMPORTANT IMPORT (MISSING था)
+// ❌ REMOVE local storage wala path + fs
+// const path = require("path");
+// const fs = require("fs");
+
+// ✅ MODEL
 const Evidence = require("../models/Evidence");
 
+// ✅ CONTROLLER
 const evidenceController = require("../controllers/evidenceController");
+
+// ✅ MIDDLEWARE
 const { protect } = require("../middleware/authMiddleware");
 const { allowRoles } = require("../middleware/roleMiddleware");
 
-// ================= UPLOAD FOLDER =================
-const uploadPath = path.join(__dirname, "../uploads");
+// ================= CLOUDINARY SETUP =================
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("../config/cloudinary");
 
-if (!fs.existsSync(uploadPath)) {
-  fs.mkdirSync(uploadPath, { recursive: true });
-}
-
-// ================= MULTER =================
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + "-" + file.originalname);
+// 🔥 CLOUD STORAGE (FINAL)
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "evidence_files",   // Cloudinary folder
+    resource_type: "auto"       // image, video, pdf sab support
   }
 });
 
@@ -57,7 +58,7 @@ router.get(
   evidenceController.searchEvidence
 );
 
-// 🔹 Get Evidence by Case ID (🔥 NEW MAIN FEATURE)
+// 🔹 Get Evidence by Case ID (🔥 MAIN FEATURE)
 router.get(
   "/case/:caseId",
   protect,
@@ -76,7 +77,7 @@ router.get(
   }
 );
 
-// 🔹 Verify
+// 🔹 Verify Evidence
 router.put(
   "/verify/:id",
   protect,
@@ -84,7 +85,7 @@ router.put(
   evidenceController.verifyEvidence
 );
 
-// 🔹 Download
+// 🔹 Download Evidence
 router.get(
   "/download/:id",
   protect,

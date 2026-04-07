@@ -4,12 +4,11 @@ const Custody = require("../models/Custody");
 const Case = require("../models/Case");
 
 const crypto = require("crypto");
-const fs = require("fs");
 const PDFDocument = require("pdfkit");
-
+const https = require("https");
 
 // ===============================
-// Upload Evidence
+// Upload Evidence (CLOUDINARY)
 // ===============================
 
 exports.uploadEvidence = async (req, res) => {
@@ -22,11 +21,20 @@ exports.uploadEvidence = async (req, res) => {
       });
     }
 
-    const filePath = req.file.path.replace(/\\/g, "/");
+    // ✅ Cloudinary URL
+    const fileUrl = req.file.path; // multer-cloudinary देता है
 
-    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+    // 🔥 HASH बनाने के लिए URL से file पढ़ना
+    const getBuffer = (url) =>
+      new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+          const data = [];
+          res.on("data", (chunk) => data.push(chunk));
+          res.on("end", () => resolve(Buffer.concat(data)));
+        }).on("error", reject);
+      });
 
-    const fileBuffer = fs.readFileSync(filePath);
+    const fileBuffer = await getBuffer(fileUrl);
 
     const fileHash = crypto
       .createHash("sha256")
@@ -37,19 +45,17 @@ exports.uploadEvidence = async (req, res) => {
       title,
       description,
       fileUrl,
-      filePath,
       fileHash,
       uploadedBy: req.user.id,
       case: caseId
     });
 
-    // 🔥 CASE LINK
     await Case.findByIdAndUpdate(caseId, {
       $push: { evidences: evidence._id }
     });
 
     res.json({
-      message: "Evidence Uploaded",
+      message: "Evidence Uploaded (Cloud) ✅",
       evidence
     });
 
@@ -58,38 +64,9 @@ exports.uploadEvidence = async (req, res) => {
     res.status(500).json({ message: "Upload failed" });
   }
 };
-// ===============================
-// Search Evidence
-// ===============================
-
-exports.searchEvidence = async (req,res)=>{
-
-try{
-
-const keyword = req.query.keyword;
-
-const evidences = await Evidence.find({
-$or:[
-{title:{$regex:keyword,$options:"i"}},
-{description:{$regex:keyword,$options:"i"}}
-]
-});
-
-res.json(evidences);
-
-}catch(err){
-
-res.status(500).json({
-message:"Search failed"
-});
-
-}
-
-};
-
 
 // ===============================
-// Verify Evidence
+// Verify Evidence (Cloud)
 // ===============================
 
 exports.verifyEvidence = async (req, res) => {
@@ -102,14 +79,16 @@ exports.verifyEvidence = async (req, res) => {
       });
     }
 
-    // ❗ SAFE CHECK
-    if (!fs.existsSync(evidence.filePath)) {
-      return res.status(400).json({
-        message: "File missing"
+    const getBuffer = (url) =>
+      new Promise((resolve, reject) => {
+        https.get(url, (res) => {
+          const data = [];
+          res.on("data", (chunk) => data.push(chunk));
+          res.on("end", () => resolve(Buffer.concat(data)));
+        }).on("error", reject);
       });
-    }
 
-    const fileBuffer = fs.readFileSync(evidence.filePath);
+    const fileBuffer = await getBuffer(evidence.fileUrl);
 
     const newHash = crypto
       .createHash("sha256")
@@ -140,15 +119,12 @@ exports.verifyEvidence = async (req, res) => {
   }
 };
 
-
 // ===============================
-// Download Evidence
+// Download (Cloud)
 // ===============================
 
 exports.downloadEvidence = async (req, res) => {
   try {
-    const io = req.app.get("io");
-
     const evidence = await Evidence.findById(req.params.id);
 
     if (!evidence) {
@@ -157,145 +133,68 @@ exports.downloadEvidence = async (req, res) => {
       });
     }
 
-    // ✅ FIX: Absolute path banana
-    const filePath = evidence.filePath;
-
-    // ✅ FIX: file exist check
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({
-        message: "File not found on server"
-      });
-    }
-
-    // ✅ logs
-    await Log.create({
-      action: "Evidence Downloaded",
-      user: req.user.id,
-      evidence: evidence._id
-    });
-
-    await Custody.create({
-      action: "Evidence Downloaded",
-      user: req.user.id,
-      evidence: evidence._id
-    });
-
-    io.emit("evidenceActivity", {
-      type: "DOWNLOAD",
-      message: "Evidence Downloaded",
-      evidenceId: evidence._id
-    });
-
-    // ✅ FINAL DOWNLOAD
-    res.download(filePath);
+    // ✅ direct cloud download
+    return res.redirect(evidence.fileUrl);
 
   } catch (err) {
-    console.log(err);
-
     res.status(500).json({
       message: "Download failed"
     });
   }
 };
 
-
 // ===============================
 // Certificate
 // ===============================
 
-exports.generateCertificate = async (req,res)=>{
+exports.generateCertificate = async (req, res) => {
+  try {
+    const evidence = await Evidence.findById(req.params.id)
+      .populate("uploadedBy", "name email");
 
-try{
+    const doc = new PDFDocument();
 
-const evidence = await Evidence.findById(req.params.id)
-.populate("uploadedBy","name email");
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=evidence_certificate.pdf"
+    );
 
-const doc = new PDFDocument();
+    doc.pipe(res);
 
-res.setHeader("Content-Type","application/pdf");
+    doc.fontSize(22).text("Evidence Verification Certificate");
+    doc.moveDown();
 
-res.setHeader(
-"Content-Disposition",
-"attachment; filename=evidence_certificate.pdf"
-);
+    doc.text(`Evidence ID: ${evidence._id}`);
+    doc.text(`Title: ${evidence.title}`);
+    doc.text(`Hash: ${evidence.fileHash}`);
+    doc.text(`Uploaded By: ${evidence.uploadedBy.name}`);
+    doc.text(`Verification Date: ${new Date()}`);
 
-doc.pipe(res);
+    doc.end();
 
-doc.fontSize(22).text("Evidence Verification Certificate");
-
-doc.moveDown();
-
-doc.text(`Evidence ID: ${evidence._id}`);
-doc.text(`Title: ${evidence.title}`);
-doc.text(`Hash: ${evidence.fileHash}`);
-doc.text(`Uploaded By: ${evidence.uploadedBy.name}`);
-doc.text(`Verification Date: ${new Date()}`);
-
-doc.end();
-
-}catch(err){
-
-res.status(500).json({
-message:"Certificate generation failed"
-});
-
-}
-
+  } catch (err) {
+    res.status(500).json({
+      message: "Certificate generation failed"
+    });
+  }
 };
+
 // ===============================
 // Get All Evidence
 // ===============================
 
-exports.getAllEvidence = async (req,res)=>{
-
-try{
-
-const evidences = await Evidence.find()
-.populate("uploadedBy","name email")
-.populate("case","caseNumber title");
-
-res.json(evidences);
-
-}catch(err){
-
-console.log(err);
-
-res.status(500).json({
-message:"Error fetching evidence"
-});
-
-}
-
-};
-exports.deleteEvidence = async (req, res) => {
+exports.getAllEvidence = async (req, res) => {
   try {
-    const evidence = await Evidence.findById(req.params.id);
+    const evidences = await Evidence.find()
+      .populate("uploadedBy", "name email")
+      .populate("case", "caseNumber title");
 
-    if (!evidence) {
-      return res.status(404).json({ message: "Not found" });
-    }
-
-    if (fs.existsSync(evidence.filePath)) {
-      fs.unlinkSync(evidence.filePath);
-    }
-
-    await evidence.deleteOne();
-
-    res.json({ message: "Deleted successfully" });
+    res.json(evidences);
 
   } catch (err) {
-    res.status(500).json({ message: "Delete failed" });
-  }
-};
-exports.getEvidenceByCase = async (req, res) => {
-  try {
-    const { caseId } = req.params;
-
-    const data = await Evidence.find({ case: caseId });
-
-    res.json(data);
-
-  } catch (err) {
-    res.status(500).json({ message: "Error fetching case evidence" });
+    res.status(500).json({
+      message: "Error fetching evidence"
+    });
   }
 };
