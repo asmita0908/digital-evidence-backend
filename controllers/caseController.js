@@ -37,11 +37,8 @@ exports.getCases = async (req, res, next) => {
       .populate("officer", "name email role")
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      status: "success",
-      results: cases.length,
-      data: cases
-    });
+    // 🔥 FIX: direct array भेजो
+    res.status(200).json(cases);
 
   } catch (err) {
     next(err);
