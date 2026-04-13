@@ -15,6 +15,11 @@ exports.uploadEvidence = async (req, res) => {
   try {
     const { title, description, caseId } = req.body;
 
+    // 🔍 DEBUG (important)
+    console.log("BODY:", req.body);
+    console.log("FILE:", req.file);
+
+    // ❌ validation
     if (!title || !description || !caseId) {
       return res.status(400).json({
         message: "All fields required ❌"
@@ -27,17 +32,24 @@ exports.uploadEvidence = async (req, res) => {
       });
     }
 
-    // ✅ Cloudinary data
+    // ✅ Cloudinary safe fields
     const fileUrl = req.file.path;
-    const filePath = req.file.filename;
+    const filePath = req.file.public_id; // 🔥 FIX (IMPORTANT)
 
-    // ✅ SIMPLE HASH (NO CRASH)
+    // ❌ अगर फिर भी undefined आए तो fallback
+    if (!filePath) {
+      return res.status(500).json({
+        message: "File upload error (no public_id)"
+      });
+    }
+
+    // ✅ safe hash
     const fileHash = crypto
       .createHash("sha256")
       .update(filePath + Date.now())
       .digest("hex");
 
-    // ✅ SAVE
+    // ✅ save
     const evidence = await Evidence.create({
       title,
       description,
@@ -58,8 +70,10 @@ exports.uploadEvidence = async (req, res) => {
     });
 
   } catch (err) {
-    console.log("UPLOAD ERROR:", err); // 👈 VERY IMPORTANT
-    res.status(500).json({ message: "Upload failed ❌" });
+    console.log("UPLOAD ERROR:", err); // 🔥 MUST CHECK THIS
+    res.status(500).json({
+      message: err.message || "Upload failed ❌"
+    });
   }
 };
 
