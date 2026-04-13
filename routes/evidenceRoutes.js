@@ -27,9 +27,9 @@ const upload = multer({ storage });
 // Upload
 router.post(
   "/upload",
+  upload.single("file"), // 👈 FIRST
   protect,
   allowRoles("admin", "officer"),
-  upload.single("file"),
   evidenceController.uploadEvidence
 );
 
