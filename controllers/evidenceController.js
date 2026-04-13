@@ -15,16 +15,23 @@ exports.uploadEvidence = async (req, res) => {
   try {
     const { title, description, caseId } = req.body;
 
-    if (!caseId) {
+    if (!title || !description || !caseId) {
       return res.status(400).json({
-        message: "Case ID required ❌"
+        message: "All fields required ❌"
       });
     }
 
-    // ✅ Cloudinary URL
-    const fileUrl = req.file.path; // multer-cloudinary देता है
+    if (!req.file) {
+      return res.status(400).json({
+        message: "File missing ❌"
+      });
+    }
 
-    // 🔥 HASH बनाने के लिए URL से file पढ़ना
+    // ✅ Cloudinary data
+    const fileUrl = req.file.path;
+    const filePath = req.file.filename; // 🔥 FIX (important)
+
+    // 🔥 HASH
     const getBuffer = (url) =>
       new Promise((resolve, reject) => {
         https.get(url, (res) => {
@@ -41,10 +48,12 @@ exports.uploadEvidence = async (req, res) => {
       .update(fileBuffer)
       .digest("hex");
 
+    // ✅ SAVE (FIXED)
     const evidence = await Evidence.create({
       title,
       description,
       fileUrl,
+      filePath, // 🔥 ADD THIS
       fileHash,
       uploadedBy: req.user.id,
       case: caseId
@@ -55,13 +64,13 @@ exports.uploadEvidence = async (req, res) => {
     });
 
     res.json({
-      message: "Evidence Uploaded (Cloud) ✅",
+      message: "Evidence Uploaded ✅",
       evidence
     });
 
   } catch (err) {
-    console.log(err);
-    res.status(500).json({ message: "Upload failed" });
+    console.log("UPLOAD ERROR:", err); // 🔥 important
+    res.status(500).json({ message: "Upload failed ❌" });
   }
 };
 
