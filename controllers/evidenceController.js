@@ -29,31 +29,20 @@ exports.uploadEvidence = async (req, res) => {
 
     // ✅ Cloudinary data
     const fileUrl = req.file.path;
-    const filePath = req.file.filename; // 🔥 FIX (important)
+    const filePath = req.file.filename;
 
-    // 🔥 HASH
-    const getBuffer = (url) =>
-      new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-          const data = [];
-          res.on("data", (chunk) => data.push(chunk));
-          res.on("end", () => resolve(Buffer.concat(data)));
-        }).on("error", reject);
-      });
-
-    const fileBuffer = await getBuffer(fileUrl);
-
+    // ✅ SIMPLE HASH (NO CRASH)
     const fileHash = crypto
       .createHash("sha256")
-      .update(fileBuffer)
+      .update(filePath + Date.now())
       .digest("hex");
 
-    // ✅ SAVE (FIXED)
+    // ✅ SAVE
     const evidence = await Evidence.create({
       title,
       description,
       fileUrl,
-      filePath, // 🔥 ADD THIS
+      filePath,
       fileHash,
       uploadedBy: req.user.id,
       case: caseId
@@ -69,7 +58,7 @@ exports.uploadEvidence = async (req, res) => {
     });
 
   } catch (err) {
-    console.log("UPLOAD ERROR:", err); // 🔥 important
+    console.log("UPLOAD ERROR:", err); // 👈 VERY IMPORTANT
     res.status(500).json({ message: "Upload failed ❌" });
   }
 };
