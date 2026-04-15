@@ -26,14 +26,16 @@ exports.uploadEvidence = async (req, res) => {
       return res.status(400).json({ message: "File missing ❌" });
     }
 
-    // ✅ SAFE DATA
-    const fileUrl = req.file.path || "dummy_url";
-    const filePath = req.file.public_id || "dummy_path";
+    // ✅ Cloudinary data (IMPORTANT)
+    const fileUrl = req.file.path;
+    const filePath = req.file.filename;
 
-    // ✅ SAFE HASH
-    const fileHash = "test_hash_" + Date.now();
+    // ✅ HASH FIX (IMPORTANT 🔥)
+    const fileHash = crypto
+      .createHash("sha256")
+      .update(fileUrl)   // ⚠️ CHANGE HERE (pehle galat tha)
+      .digest("hex");
 
-    // ✅ SAVE
     const evidence = await Evidence.create({
       title,
       description,
@@ -71,32 +73,17 @@ exports.verifyEvidence = async (req, res) => {
       });
     }
 
-    const getBuffer = (url) =>
-      new Promise((resolve, reject) => {
-        https.get(url, (res) => {
-          const data = [];
-          res.on("data", (chunk) => data.push(chunk));
-          res.on("end", () => resolve(Buffer.concat(data)));
-        }).on("error", reject);
-      });
-
-    const fileBuffer = await getBuffer(evidence.fileUrl);
-
+    // ✅ SAME LOGIC AS UPLOAD (IMPORTANT 🔥)
     const newHash = crypto
       .createHash("sha256")
-      .update(fileBuffer)
+      .update(evidence.fileUrl)
       .digest("hex");
 
     let tampered = false;
 
     if (newHash !== evidence.fileHash) {
-      evidence.isTampered = true;
       tampered = true;
-    } else {
-      evidence.isTampered = false;
     }
-
-    await evidence.save();
 
     res.json({
       tampered,
