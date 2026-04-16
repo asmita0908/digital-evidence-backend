@@ -27,9 +27,11 @@ exports.uploadEvidence = async (req, res) => {
     }
 
     // ✅ Cloudinary data (IMPORTANT)
-    const fileUrl = req.file.path
-  ? req.file.path.replace("http://", "https://")
-  : null;
+    console.log("FILE OBJECT:", req.file);
+
+    const fileUrl = req.file?.path || null;
+
+    console.log("FILE URL:", fileUrl);
 
 if (!fileUrl) {
   return res.status(500).json({ message: "File upload failed ❌" });
@@ -112,18 +114,24 @@ exports.downloadEvidence = async (req, res) => {
   try {
     const evidence = await Evidence.findById(req.params.id);
 
-    if (!evidence) {
+    if (!evidence || !evidence.fileUrl) {
       return res.status(404).json({
-        message: "Evidence not found"
+        message: "Evidence not found ❌"
       });
     }
 
-    // ✅ direct cloud download
-    return res.redirect(evidence.fileUrl);
+    https.get(evidence.fileUrl, (fileRes) => {
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=evidence"
+      );
+      fileRes.pipe(res);
+    });
 
   } catch (err) {
+    console.log(err);
     res.status(500).json({
-      message: "Download failed"
+      message: "Download failed ❌"
     });
   }
 };
