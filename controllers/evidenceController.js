@@ -27,13 +27,13 @@ exports.uploadEvidence = async (req, res) => {
     }
 
     // ✅ Cloudinary data (IMPORTANT)
-    const fileUrl = req.file.path;
+    const fileUrl = req.file.path.replace("http://", "https://");
     const filePath = req.file.filename;
 
     // ✅ HASH FIX (IMPORTANT 🔥)
     const fileHash = crypto
       .createHash("sha256")
-      .update(fileUrl)   // ⚠️ CHANGE HERE (pehle galat tha)
+      .update(fileUrl)
       .digest("hex");
 
     const evidence = await Evidence.create({
