@@ -1,24 +1,20 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 
-// ========================================
-// 🔐 PROTECT MIDDLEWARE (Authentication)
-// ========================================
+// ================= PROTECT =================
 const protect = async (req, res, next) => {
   try {
     let token;
 
-    // 1️⃣ Get token from header
-    // 1️⃣ Get token from header OR query (IMPORTANT 🔥)
-if (
-  req.headers.authorization &&
-  req.headers.authorization.startsWith("Bearer ")
-) {
-  token = req.headers.authorization.split(" ")[1];
-} else if (req.query.token) {
-  token = req.query.token;  // ✅ ADD THIS
-}
-    // 2️⃣ If no token
+    if (
+      req.headers.authorization &&
+      req.headers.authorization.startsWith("Bearer ")
+    ) {
+      token = req.headers.authorization.split(" ")[1];
+    } else if (req.query.token) {
+      token = req.query.token;
+    }
+
     if (!token) {
       return res.status(401).json({
         status: "error",
@@ -26,10 +22,8 @@ if (
       });
     }
 
-    // 3️⃣ Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // 4️⃣ Get user from DB
     const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {
@@ -39,34 +33,20 @@ if (
       });
     }
 
-    // 5️⃣ Attach user to request
     req.user = user;
 
     next();
-
   } catch (error) {
-
-    // Token expired
-    if (error.name === "TokenExpiredError") {
-      return res.status(401).json({
-        status: "error",
-        message: "Token expired. Please login again.",
-      });
-    }
-
     return res.status(401).json({
       status: "error",
-      message: "Invalid token",
+      message: "Invalid or expired token",
     });
   }
 };
 
-// ========================================
-// 🛡 ROLE BASED AUTHORIZATION
-// ========================================
-const authorize = (...roles) => {
+// ================= ROLE =================
+const allowRoles = (...roles) => {
   return (req, res, next) => {
-
     if (!req.user) {
       return res.status(401).json({
         status: "error",
@@ -77,7 +57,7 @@ const authorize = (...roles) => {
     if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         status: "error",
-        message: `Access denied. Role '${req.user.role}' not allowed.`,
+        message: `Access denied for role: ${req.user.role}`,
       });
     }
 
@@ -87,5 +67,5 @@ const authorize = (...roles) => {
 
 module.exports = {
   protect,
-  authorize,
+  allowRoles, // 🔥 IMPORTANT
 };
