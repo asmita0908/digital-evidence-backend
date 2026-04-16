@@ -27,7 +27,13 @@ exports.uploadEvidence = async (req, res) => {
     }
 
     // ✅ Cloudinary data (IMPORTANT)
-    const fileUrl = req.file.path.replace("http://", "https://");
+    const fileUrl = req.file.path
+  ? req.file.path.replace("http://", "https://")
+  : null;
+
+if (!fileUrl) {
+  return res.status(500).json({ message: "File upload failed ❌" });
+}
     const filePath = req.file.filename;
 
     // ✅ HASH FIX (IMPORTANT 🔥)
