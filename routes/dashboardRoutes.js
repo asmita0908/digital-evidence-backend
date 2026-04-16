@@ -5,10 +5,10 @@ const { protect, authorize } = require("../middleware/authMiddleware");
 const { getDashboardStats } = require("../controllers/dashboardController");
 
 router.get(
-  "/stats",
+  "/",
   protect,
-  authorize("admin", "officer"),
-  getDashboardStats
+  allowRoles("admin", "officer"),
+  controller
 );
 
 module.exports = router;

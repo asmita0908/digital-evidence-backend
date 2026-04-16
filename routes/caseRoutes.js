@@ -18,7 +18,7 @@ const {
 router.post(
   "/",
   protect,
-  authorize("admin", "officer"),
+  allowRoles("admin", "officer"),
   createCase
 );
 
