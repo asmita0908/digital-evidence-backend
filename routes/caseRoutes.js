@@ -54,8 +54,8 @@ router.get(
 router.delete(
   "/:id",
   protect,
-  authorize("admin"),
-  deleteCase
+  allowRoles("admin"),
+  caseController.deleteCase
 );
 
 module.exports = router;

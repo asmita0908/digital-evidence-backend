@@ -231,3 +231,19 @@ exports.getEvidenceByCase = async (req, res) => {
     });
   }
 };
+exports.deleteEvidence = async (req, res) => {
+  try {
+    const evidence = await Evidence.findById(req.params.id);
+
+    if (!evidence) {
+      return res.status(404).json({ message: "Not found ❌" });
+    }
+
+    await evidence.deleteOne();
+
+    res.json({ message: "Evidence deleted ✅" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Delete failed ❌" });
+  }
+};

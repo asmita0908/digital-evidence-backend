@@ -80,5 +80,11 @@ router.get(
   allowRoles("admin", "officer", "forensic"),
   evidenceController.generateCertificate
 );
-
+// DELETE Evidence
+router.delete(
+  "/:id",
+  protect,
+  allowRoles("admin"), // 🔥 ONLY ADMIN
+  evidenceController.deleteEvidence
+);
 module.exports = router;
