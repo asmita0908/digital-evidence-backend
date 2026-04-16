@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const { protect } = require("../middleware/authMiddleware");
-const { allowRoles } = require("../middleware/roleMiddleware"); // 🔥 ADD THIS
-const { protect, authorize } = require("../middleware/authMiddleware");
+
+const { protect, allowRoles } = require("../middleware/authMiddleware"); // ✅ ONLY THIS
 
 const {
   createCase,
@@ -12,51 +11,19 @@ const {
   deleteCase
 } = require("../controllers/caseController");
 
-// ==============================
-// Create Case
-// ==============================
-router.post(
-  "/",
-  protect,
-  allowRoles("admin", "officer"),
-  createCase
-);
+// Create
+router.post("/", protect, allowRoles("admin","officer"), createCase);
 
-// ==============================
-// Get All Cases
-// ==============================
-router.get(
-  "/",
-  protect,
-  getCases
-);
+// Get all
+router.get("/", protect, getCases);
 
-// ==============================
-// Get Single Case
-// ==============================
-router.get(
-  "/:id",
-  protect,
-  getSingleCase
-);
+// Get single
+router.get("/:id", protect, getSingleCase);
 
-// ==============================
-// Get Evidence By Case
-// ==============================
-router.get(
-  "/:caseId/evidence",
-  protect,
-  getCaseEvidence
-);
+// Get evidence
+router.get("/:caseId/evidence", protect, getCaseEvidence);
 
-// ==============================
-// Delete Case (Admin Only)
-// ==============================
-router.delete(
-  "/:id",
-  protect,
-  allowRoles("admin"),
-  caseController.deleteCase
-);
+// Delete
+router.delete("/:id", protect, allowRoles("admin"), deleteCase); // ✅ FIXED
 
 module.exports = router;

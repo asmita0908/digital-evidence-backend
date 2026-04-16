@@ -2,11 +2,8 @@ const express = require("express");
 const router = express.Router();
 const multer = require("multer");
 
-const Evidence = require("../models/Evidence");
 const evidenceController = require("../controllers/evidenceController");
-
-const { protect } = require("../middleware/authMiddleware");
-const { allowRoles } = require("../middleware/roleMiddleware");
+const { protect, allowRoles } = require("../middleware/authMiddleware"); // ✅ ONLY THIS
 
 // ================= CLOUDINARY =================
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
@@ -24,68 +21,20 @@ const upload = multer({ storage });
 
 // ================= ROUTES =================
 
-// Upload
-router.post(
-  "/upload",
-  upload.single("file"), // 👈 FIRST
-  protect,
-  allowRoles("admin", "officer"),
-  evidenceController.uploadEvidence
-);
+router.post("/upload", upload.single("file"), protect, allowRoles("admin", "officer"), evidenceController.uploadEvidence);
 
-// Get All
-router.get(
-  "/all",
-  protect,
-  allowRoles("admin", "officer", "forensic", "viewer"),
-  evidenceController.getAllEvidence
-);
+router.get("/all", protect, allowRoles("admin","officer","forensic","viewer"), evidenceController.getAllEvidence);
 
-// Search ✅
-router.get(
-  "/search",
-  protect,
-  allowRoles("admin", "officer", "forensic", "viewer"),
-  evidenceController.searchEvidence
-);
+router.get("/search", protect, allowRoles("admin","officer","forensic","viewer"), evidenceController.searchEvidence);
 
-// Case-wise evidence ✅ (FIXED)
-router.get(
-  "/case/:caseId",
-  protect,
-  allowRoles("admin", "officer", "forensic", "viewer"),
-  evidenceController.getEvidenceByCase
-);
+router.get("/case/:caseId", protect, allowRoles("admin","officer","forensic","viewer"), evidenceController.getEvidenceByCase);
 
-// Verify
-router.put(
-  "/verify/:id",
-  protect,
-  allowRoles("admin", "forensic", "officer"),
-  evidenceController.verifyEvidence
-);
+router.put("/verify/:id", protect, allowRoles("admin","forensic","officer"), evidenceController.verifyEvidence);
 
-// Download
-router.get(
-  "/download/:id",
-  protect,
-  allowRoles("admin", "officer", "forensic", "viewer"),
-  evidenceController.downloadEvidence
-);
+router.get("/download/:id", protect, allowRoles("admin","officer","forensic","viewer"), evidenceController.downloadEvidence);
 
-// Certificate
-router.get(
-  "/certificate/:id",
-  protect,
-  allowRoles("admin", "officer", "forensic"),
-  evidenceController.generateCertificate
-);
-// DELETE Evidence
-router.delete(
-  "/:id",
-  protect,
-  allowRoles("admin"), // 🔥 ONLY ADMIN
-  evidenceController.deleteEvidence
-);
+router.get("/certificate/:id", protect, allowRoles("admin","officer","forensic"), evidenceController.generateCertificate);
+
+router.delete("/:id", protect, allowRoles("admin"), evidenceController.deleteEvidence);
 
 module.exports = router;
