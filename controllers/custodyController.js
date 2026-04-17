@@ -1,25 +1,18 @@
 const Custody = require("../models/Custody");
 
-exports.getEvidenceTimeline = async(req,res)=>{
+exports.getEvidenceTimeline = async (req, res) => {
+  try {
+    const data = await Custody.find({
+      evidence: req.params.id
+    })
+      .populate("user", "name")
+      .sort({ createdAt: -1 });
 
-try{
+    res.json(data);
 
-const timeline = await Custody.find({
-
-evidence:req.params.id
-
-})
-.populate("user","name")
-.sort({createdAt:-1});
-
-res.json(timeline);
-
-}catch(error){
-
-res.status(500).json({
-message:"Timeline fetch failed"
-});
-
-}
-
+  } catch (err) {
+    res.status(500).json({
+      message: "Timeline fetch failed ❌"
+    });
+  }
 };

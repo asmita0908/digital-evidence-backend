@@ -84,21 +84,17 @@ exports.verifyEvidence = async (req, res) => {
 
     if (!evidence) {
       return res.status(404).json({
-        message: "Evidence not found"
+        message: "Evidence not found ❌"
       });
     }
 
-    // ✅ SAME LOGIC AS UPLOAD (IMPORTANT 🔥)
-    const fileHash = crypto
+    // ✅ SAME HASH LOGIC AS UPLOAD
+    const newHash = crypto
       .createHash("sha256")
-      .update(req.file.originalname + Date.now())
+      .update(evidence.fileUrl)
       .digest("hex");
 
-    let tampered = false;
-
-    if (newHash !== evidence.fileHash) {
-      tampered = true;
-    }
+    const tampered = newHash !== evidence.fileHash;
 
     res.json({
       tampered,
@@ -106,13 +102,12 @@ exports.verifyEvidence = async (req, res) => {
     });
 
   } catch (err) {
-    console.log(err);
+    console.log("VERIFY ERROR:", err);
     res.status(500).json({
-      message: "Verification Failed"
+      message: "Verification Failed ❌"
     });
   }
 };
-
 // ===============================
 // Download (Cloud)
 // ===============================
