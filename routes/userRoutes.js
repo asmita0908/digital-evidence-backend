@@ -6,27 +6,10 @@ const {
   generateRefreshToken,
 } = require("../utils/generateTokens");
 
-// ===============================
-// REGISTER
-// ===============================
-router.post("/register", async (req, res) => {
-  const { name, email, password, role } = req.body;
+/// 🔥 ADD THIS IMPORT (TOP में)
+const { protect, authorize } = require("../middleware/authMiddleware");
 
-  const userExists = await User.findOne({ email });
-  if (userExists)
-    return res.status(400).json({ message: "User already exists" });
 
-  const user = await User.create({
-    name,
-    email,
-    password,
-    role
-  });
-
-  res.status(201).json({
-    message: "User registered successfully"
-  });
-});
 
 // ===============================
 // LOGIN
@@ -69,6 +52,52 @@ router.post("/refresh", async (req, res) => {
   const accessToken = generateAccessToken(user._id, user.role);
 
   res.json({ accessToken });
+});
+// ===============================
+// GET ALL USERS (ADMIN)
+// ===============================
+router.get("/", protect, authorize("admin"), async (req, res) => {
+  const users = await User.find().select("-password");
+  res.json(users);
+});
+
+
+// ===============================
+// CREATE USER (ADMIN)
+// ===============================
+router.post("/", protect, authorize("admin"), async (req, res) => {
+  const { name, email, password, role } = req.body;
+
+  const user = await User.create({
+    name,
+    email,
+    password,
+    role
+  });
+
+  res.json({ message: "User created ✅" });
+});
+
+
+// ===============================
+// UPDATE ROLE
+// ===============================
+router.put("/:id", protect, authorize("admin"), async (req, res) => {
+  const { role } = req.body;
+
+  await User.findByIdAndUpdate(req.params.id, { role });
+
+  res.json({ message: "Role updated ✅" });
+});
+
+
+// ===============================
+// DELETE USER
+// ===============================
+router.delete("/:id", protect, authorize("admin"), async (req, res) => {
+  await User.findByIdAndDelete(req.params.id);
+
+  res.json({ message: "User deleted ✅" });
 });
 
 module.exports = router;
