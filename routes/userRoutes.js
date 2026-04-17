@@ -7,7 +7,7 @@ const {
 } = require("../utils/generateTokens");
 
 /// 🔥 ADD THIS IMPORT (TOP में)
-const { protect, authorize } = require("../middleware/authMiddleware");
+const { protect, allowRoles } = require("../middleware/authMiddleware");
 
 
 
@@ -56,7 +56,7 @@ router.post("/refresh", async (req, res) => {
 // ===============================
 // GET ALL USERS (ADMIN)
 // ===============================
-router.get("/", protect, authorize("admin"), async (req, res) => {
+router.get("/", protect, allowRoles("admin"), async (req, res) => {
   const users = await User.find().select("-password");
   res.json(users);
 });
@@ -65,7 +65,7 @@ router.get("/", protect, authorize("admin"), async (req, res) => {
 // ===============================
 // CREATE USER (ADMIN)
 // ===============================
-router.post("/", protect, authorize("admin"), async (req, res) => {
+router.post("/", protect, allowRoles("admin"), async (req, res) => {
   const { name, email, password, role } = req.body;
 
   const user = await User.create({
@@ -82,7 +82,7 @@ router.post("/", protect, authorize("admin"), async (req, res) => {
 // ===============================
 // UPDATE ROLE
 // ===============================
-router.put("/:id", protect, authorize("admin"), async (req, res) => {
+router.put("/:id", protect, allowRoles("admin"), async (req, res) => {
   const { role } = req.body;
 
   await User.findByIdAndUpdate(req.params.id, { role });
@@ -94,7 +94,7 @@ router.put("/:id", protect, authorize("admin"), async (req, res) => {
 // ===============================
 // DELETE USER
 // ===============================
-router.delete("/:id", protect, authorize("admin"), async (req, res) => {
+router.delete("/:id", protect, allowRoles("admin"), async (req, res) => {
   await User.findByIdAndDelete(req.params.id);
 
   res.json({ message: "User deleted ✅" });
