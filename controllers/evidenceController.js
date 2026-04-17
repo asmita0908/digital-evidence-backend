@@ -54,6 +54,13 @@ if (!fileUrl) {
       case: caseId
     });
 
+// 🔥 ADD THIS
+    await Custody.create({
+    evidence: evidence._id,
+    action: "Uploaded",
+    performedBy: req.user.id
+    });
+
     res.json({
       message: "Upload success ✅",
       evidence
@@ -82,9 +89,9 @@ exports.verifyEvidence = async (req, res) => {
     }
 
     // ✅ SAME LOGIC AS UPLOAD (IMPORTANT 🔥)
-    const newHash = crypto
+    const fileHash = crypto
       .createHash("sha256")
-      .update(evidence.fileUrl)
+      .update(req.file.originalname + Date.now())
       .digest("hex");
 
     let tampered = false;
@@ -181,7 +188,7 @@ exports.getAllEvidence = async (req, res) => {
   try {
     const evidences = await Evidence.find()
       .populate("uploadedBy", "name email")
-      .populate("case", "caseNumber title");
+      .populate("case", "_id caseNumber title");
 
     res.json(evidences);
 
