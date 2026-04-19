@@ -43,17 +43,18 @@ const userSchema = mongoose.Schema(
 
   refreshToken:{
     type:String
-    // 🔐 ADD THIS
+  },   // ✅ COMMA IMPORTANT
+
+  // 🔐 ADD HERE (INSIDE SCHEMA ONLY)
   resetOTP:{
     type:Number
   },
+
   otpExpiry:{
     type:Date
-  
   }
 
 },{timestamps:true});
-
 
 // HASH PASSWORD
 userSchema.pre("save",async function(next){
