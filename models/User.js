@@ -1,8 +1,7 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const userSchema = mongoose.Schema(
-{
+const userSchema = mongoose.Schema({
   name:{
     type:String,
     required:true
@@ -26,7 +25,6 @@ const userSchema = mongoose.Schema(
     default:"officer"
   },
 
-  // 🏢 Organization System
   organization:{
     type:mongoose.Schema.Types.ObjectId,
     ref:"Organization"
@@ -43,9 +41,9 @@ const userSchema = mongoose.Schema(
 
   refreshToken:{
     type:String
-  },   // ✅ COMMA IMPORTANT
+  },
 
-  // 🔐 ADD HERE (INSIDE SCHEMA ONLY)
+  // 🔐 OTP
   resetOTP:{
     type:Number
   },
@@ -56,33 +54,20 @@ const userSchema = mongoose.Schema(
 
 },{timestamps:true});
 
-// HASH PASSWORD
-userSchema.pre("save",async function(next){
 
-if(!this.isModified("password")) return next();
-
-this.password = await bcrypt.hash(this.password,12);
-
-next();
-
-});
-
-
-// MATCH PASSWORD
-userSchema.methods.matchPassword = async function(password){
-
-return await bcrypt.compare(password,this.password);
-
-};
-const bcrypt = require("bcryptjs");
-
+// ✅ HASH PASSWORD (ONLY ONE)
 userSchema.pre("save", async function(next){
   if(!this.isModified("password")) return next();
 
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
 });
+
+
+// ✅ MATCH PASSWORD (ONLY ONE)
 userSchema.methods.matchPassword = async function(password){
   return await bcrypt.compare(password, this.password);
 };
-module.exports = mongoose.model("User",userSchema);
+
+
+module.exports = mongoose.model("User", userSchema);
