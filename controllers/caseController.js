@@ -108,13 +108,13 @@ exports.getCaseEvidence = async (req, res, next) => {
   try {
 
     const evidence = await Evidence.find({
-      case: req.params.caseId
-    })
-    .populate("uploadedBy", "name email role")
-    .populate("case", "_id caseNumber title")
-    .sort({ createdAt: -1 });
+  case: req.params.caseId
+})
+.populate("uploadedBy", "name email role")
+.populate("case", "_id caseNumber title")
+.sort({ createdAt: -1 });
 
-    res.status(200).json(evidence); // 🔥 array direct भेजो
+res.json(evidence);
 
   } catch (err) {
     next(err);

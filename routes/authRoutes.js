@@ -198,4 +198,74 @@ router.post("/verify-2fa/:id", async (req, res) => {
   });
 });
 
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.json({ message: "User not found ❌" });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+
+    user.resetOTP = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 min
+
+    await user.save();
+
+    console.log("🔐 OTP:", otp); // check terminal
+
+    res.json({ message: "OTP sent ✅ (check console)" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Error sending OTP" });
+  }
+});
+
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.json({ message: "User not found ❌" });
+    }
+
+    user.password = newPassword; // 🔥 auto hash ho jayega (pre-save)
+    user.resetOTP = null;
+    user.otpExpiry = null;
+
+    await user.save();
+
+    res.json({ message: "Password reset successful ✅" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Reset failed" });
+  }
+});
+
+
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const { email, otp } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (
+      !user ||
+      user.resetOTP != otp ||
+      user.otpExpiry < Date.now()
+    ) {
+      return res.json({ message: "Invalid or expired OTP ❌" });
+    }
+
+    res.json({ message: "OTP verified ✅" });
+
+  } catch (err) {
+    res.status(500).json({ message: "Error verifying OTP" });
+  }
+});
 module.exports = router;

@@ -43,6 +43,13 @@ const userSchema = mongoose.Schema(
 
   refreshToken:{
     type:String
+    // 🔐 ADD THIS
+  resetOTP:{
+    type:Number
+  },
+  otpExpiry:{
+    type:Date
+  
   }
 
 },{timestamps:true});
@@ -66,5 +73,15 @@ userSchema.methods.matchPassword = async function(password){
 return await bcrypt.compare(password,this.password);
 
 };
+const bcrypt = require("bcryptjs");
 
+userSchema.pre("save", async function(next){
+  if(!this.isModified("password")) return next();
+
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+userSchema.methods.matchPassword = async function(password){
+  return await bcrypt.compare(password, this.password);
+};
 module.exports = mongoose.model("User",userSchema);
