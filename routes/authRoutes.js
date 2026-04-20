@@ -1,7 +1,6 @@
 const express = require("express");
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
-
 const { protect } = require("../middleware/authMiddleware");
 const User = require("../models/User");
 
@@ -10,7 +9,6 @@ const {
   generateRefreshToken,
 } = require("../utils/generateTokens");
 
-// 🔥 ADD THIS (IMPORTANT)
 const {
   generateRegistrationOptions,
   generateAuthenticationOptions,
@@ -71,8 +69,13 @@ router.post("/login", async (req, res) => {
     res.json({
       token,
       refreshToken,
-      role: user.role
-    });
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role
+      }
+});
 
   } catch (err) {
     res.status(500).json({ message: err.message });
