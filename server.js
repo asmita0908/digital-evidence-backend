@@ -43,6 +43,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({extended:true}));
 
+// 🔥 ADD HERE (IMPORTANT)
+const session = require("express-session");
+
+app.use(session({
+  secret: "secretkey",
+  resave: false,
+  saveUninitialized: true
+}));
 
 // =============================
 // Static Folder

@@ -2,18 +2,26 @@ const express = require("express");
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 
+const { protect } = require("../middleware/authMiddleware");
 const User = require("../models/User");
+
 const {
   generateAccessToken,
   generateRefreshToken,
 } = require("../utils/generateTokens");
 
+// 🔥 ADD THIS (IMPORTANT)
+const {
+  generateRegistrationOptions,
+  generateAuthenticationOptions,
+  verifyRegistrationResponse,
+  verifyAuthenticationResponse
+} = require("@simplewebauthn/server");
+
 const router = express.Router();
 
 
-// ======================================
-// 📝 REGISTER
-// ======================================
+// ================= REGISTER =================
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
@@ -21,132 +29,58 @@ router.post("/register", async (req, res) => {
     const userExists = await User.findOne({ email });
 
     if (userExists) {
-      return res.status(400).json({
-        status: "error",
-        message: "User already exists",
-      });
+      return res.status(400).json({ message: "User already exists" });
     }
 
-    const user = await User.create({
-      name,
-      email,
-      password,
-      role,
-    });
+    await User.create({ name, email, password, role });
 
-    res.json({
-      status: "success",
-      message: "User registered successfully",
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
+    res.json({ message: "User registered ✅" });
+
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
 
-// ======================================
-// 🔐 LOGIN (🔥 FIXED)
-// ======================================
+// ================= LOGIN =================
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(401).json({
-        status: "error",
-        message: "User not found",
-      });
-    }
+    if (!user) return res.status(401).json({ message: "User not found ❌" });
 
     const isMatch = await user.matchPassword(password);
 
-    if (!isMatch) {
-      return res.status(401).json({
-        status: "error",
-        message: "Invalid password",
-      });
-    }
+    if (!isMatch) return res.status(401).json({ message: "Wrong password ❌" });
 
-    // 2FA check
     if (user.is2FAEnabled) {
       return res.json({
-        status: "success",
         twoFARequired: true,
-        userId: user._id,
+        userId: user._id
       });
     }
 
-    const accessToken = generateAccessToken(user._id, user.role);
+    const token = generateAccessToken(user._id, user.role);
     const refreshToken = generateRefreshToken(user._id);
 
     user.refreshToken = refreshToken;
     await user.save();
 
-    // 🔥 FINAL RESPONSE (IMPORTANT)
     res.json({
-      status: "success",
-      token: accessToken,   // ✅ renamed
+      token,
       refreshToken,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role     // ✅ real role
-      }
+      role: user.role
     });
 
-  } catch (error) {
-    res.status(500).json({
-      status: "error",
-      message: error.message,
-    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 });
 
 
-// ======================================
-// 🔄 REFRESH TOKEN
-// ======================================
-router.post("/refresh", async (req, res) => {
-  try {
-    const { refreshToken } = req.body;
-
-    if (!refreshToken) {
-      return res.status(401).json({
-        message: "No refresh token",
-      });
-    }
-
-    const user = await User.findOne({ refreshToken });
-
-    if (!user) {
-      return res.status(403).json({
-        message: "Invalid refresh token",
-      });
-    }
-
-    const accessToken = generateAccessToken(user._id, user.role);
-
-    res.json({
-      token: accessToken,
-    });
-
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-});
-
-
-// ======================================
-// 🔐 GENERATE 2FA
-// ======================================
+// ================= 2FA GENERATE =================
 router.post("/generate-2fa/:id", async (req, res) => {
   const user = await User.findById(req.params.id);
 
@@ -158,16 +92,13 @@ router.post("/generate-2fa/:id", async (req, res) => {
   const qrCode = await QRCode.toDataURL(secret.otpauth_url);
 
   res.json({
-    message: "Scan QR in Google Authenticator",
     qrCode,
-    manualCode: secret.base32,
+    manualCode: secret.base32
   });
 });
 
 
-// ======================================
-// 🔑 VERIFY 2FA
-// ======================================
+// ================= 2FA VERIFY =================
 router.post("/verify-2fa/:id", async (req, res) => {
   const { token } = req.body;
 
@@ -177,98 +108,84 @@ router.post("/verify-2fa/:id", async (req, res) => {
     secret: user.twoFactorSecret,
     encoding: "base32",
     token,
-    window: 1,
+    window: 1
   });
 
   if (!verified) {
-    return res.status(400).json({
-      message: "Invalid OTP",
-    });
+    return res.status(400).json({ message: "Invalid OTP ❌" });
   }
 
   user.is2FAEnabled = true;
   await user.save();
 
   const accessToken = generateAccessToken(user._id, user.role);
-  const refreshToken = generateRefreshToken(user._id);
 
-  res.json({
-    token: accessToken,
-    refreshToken,
-  });
+  res.json({ token: accessToken });
 });
 
+
+// ================= FORGOT PASSWORD =================
 router.post("/forgot-password", async (req, res) => {
-  try {
-    const { email } = req.body;
+  const user = await User.findOne({ email: req.body.email });
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.json({ message: "User not found ❌" });
-    }
+  if (!user) return res.json({ message: "User not found ❌" });
 
-    const otp = Math.floor(100000 + Math.random() * 900000);
+  const otp = Math.floor(100000 + Math.random() * 900000);
 
-    user.resetOTP = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 min
+  user.resetOTP = otp;
+  user.otpExpiry = Date.now() + 5 * 60 * 1000;
 
-    await user.save();
+  await user.save();
 
-    console.log("🔐 OTP:", otp); // check terminal
+  console.log("OTP:", otp);
 
-    res.json({ message: "OTP sent ✅ (check console)" });
-
-  } catch (err) {
-    res.status(500).json({ message: "Error sending OTP" });
-  }
+  res.json({ message: "OTP sent (check console)" });
 });
 
 
-router.post("/reset-password", async (req, res) => {
-  try {
-    const { email, newPassword } = req.body;
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.json({ message: "User not found ❌" });
-    }
-
-    user.password = newPassword; // 🔥 auto hash ho jayega (pre-save)
-    user.resetOTP = null;
-    user.otpExpiry = null;
-
-    await user.save();
-
-    res.json({ message: "Password reset successful ✅" });
-
-  } catch (err) {
-    res.status(500).json({ message: "Reset failed" });
-  }
-});
-
-
+// ================= VERIFY OTP =================
 router.post("/verify-otp", async (req, res) => {
-  try {
-    const { email, otp } = req.body;
+  const { email, otp } = req.body;
 
-    const user = await User.findOne({ email });
+  const user = await User.findOne({ email });
 
-    if (
-      !user ||
-      user.resetOTP != otp ||
-      user.otpExpiry < Date.now()
-    ) {
-      return res.json({ message: "Invalid or expired OTP ❌" });
-    }
-
-    res.json({ message: "OTP verified ✅" });
-
-  } catch (err) {
-    res.status(500).json({ message: "Error verifying OTP" });
+  if (
+    !user ||
+    user.resetOTP != otp ||
+    user.otpExpiry < Date.now()
+  ) {
+    return res.json({ message: "Invalid OTP ❌" });
   }
+
+  res.json({ message: "OTP verified ✅" });
 });
 
+
+// ================= RESET PASSWORD =================
+router.post("/reset-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (
+    !user ||
+    user.resetOTP != otp ||
+    user.otpExpiry < Date.now()
+  ) {
+    return res.json({ message: "Invalid OTP ❌" });
+  }
+
+  user.password = newPassword;
+  user.resetOTP = null;
+  user.otpExpiry = null;
+
+  await user.save();
+
+  res.json({ message: "Password reset ✅" });
+});
+
+
+// ================= WEBAUTHN REGISTER =================
 router.get("/webauthn/register-options", protect, async (req, res) => {
 
   const options = generateRegistrationOptions({
@@ -283,17 +200,21 @@ router.get("/webauthn/register-options", protect, async (req, res) => {
   res.json(options);
 });
 
+
+// ================= WEBAUTHN VERIFY REGISTER =================
 router.post("/webauthn/register", protect, async (req, res) => {
 
   const verification = await verifyRegistrationResponse({
     response: req.body,
-    expectedChallenge: req.session.challenge,
+    expectedChallenge: req.session?.challenge,
     expectedOrigin: "http://localhost:5500",
     expectedRPID: "localhost"
   });
 
   if (verification.verified) {
-    const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+
+    const { credentialPublicKey, credentialID, counter } =
+      verification.registrationInfo;
 
     await User.findByIdAndUpdate(req.user._id, {
       $push: {
@@ -309,9 +230,15 @@ router.post("/webauthn/register", protect, async (req, res) => {
   res.json({ success: true });
 });
 
+
+// ================= WEBAUTHN LOGIN OPTIONS =================
 router.get("/webauthn/login-options", async (req, res) => {
 
   const user = await User.findOne({ email: req.query.email });
+
+  if (!user || !user.webauthnCredentials?.length) {
+    return res.json({ message: "No fingerprint registered ❌" });
+  }
 
   const options = generateAuthenticationOptions({
     allowCredentials: user.webauthnCredentials.map(c => ({
@@ -325,24 +252,32 @@ router.get("/webauthn/login-options", async (req, res) => {
   res.json(options);
 });
 
+
+// ================= WEBAUTHN LOGIN =================
 router.post("/webauthn/login", async (req, res) => {
 
   const user = await User.findOne({ email: req.body.email });
+
+  if (!user) return res.status(404).json({ message: "User not found" });
 
   const credential = user.webauthnCredentials[0];
 
   const verification = await verifyAuthenticationResponse({
     response: req.body,
-    expectedChallenge: req.session.challenge,
+    expectedChallenge: req.session?.challenge,
     expectedOrigin: "http://localhost:5500",
     expectedRPID: "localhost",
     authenticator: credential
   });
 
-  if (verification.verified) {
-    res.json({ success: true });
-  } else {
-    res.status(401).json({ success: false });
+  if (!verification.verified) {
+    return res.status(401).json({ message: "Fingerprint failed ❌" });
   }
+
+  const token = generateAccessToken(user._id, user.role);
+
+  res.json({ success: true, token });
 });
+
+
 module.exports = router;
