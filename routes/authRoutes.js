@@ -268,4 +268,81 @@ router.post("/verify-otp", async (req, res) => {
     res.status(500).json({ message: "Error verifying OTP" });
   }
 });
+
+router.get("/webauthn/register-options", protect, async (req, res) => {
+
+  const options = generateRegistrationOptions({
+    rpName: "Evidence System",
+    rpID: "localhost",
+    userID: req.user._id.toString(),
+    userName: req.user.email
+  });
+
+  req.session = { challenge: options.challenge };
+
+  res.json(options);
+});
+
+router.post("/webauthn/register", protect, async (req, res) => {
+
+  const verification = await verifyRegistrationResponse({
+    response: req.body,
+    expectedChallenge: req.session.challenge,
+    expectedOrigin: "http://localhost:5500",
+    expectedRPID: "localhost"
+  });
+
+  if (verification.verified) {
+    const { credentialPublicKey, credentialID, counter } = verification.registrationInfo;
+
+    await User.findByIdAndUpdate(req.user._id, {
+      $push: {
+        webauthnCredentials: {
+          credentialID,
+          publicKey: credentialPublicKey,
+          counter
+        }
+      }
+    });
+  }
+
+  res.json({ success: true });
+});
+
+router.get("/webauthn/login-options", async (req, res) => {
+
+  const user = await User.findOne({ email: req.query.email });
+
+  const options = generateAuthenticationOptions({
+    allowCredentials: user.webauthnCredentials.map(c => ({
+      id: c.credentialID,
+      type: "public-key"
+    }))
+  });
+
+  req.session = { challenge: options.challenge };
+
+  res.json(options);
+});
+
+router.post("/webauthn/login", async (req, res) => {
+
+  const user = await User.findOne({ email: req.body.email });
+
+  const credential = user.webauthnCredentials[0];
+
+  const verification = await verifyAuthenticationResponse({
+    response: req.body,
+    expectedChallenge: req.session.challenge,
+    expectedOrigin: "http://localhost:5500",
+    expectedRPID: "localhost",
+    authenticator: credential
+  });
+
+  if (verification.verified) {
+    res.json({ success: true });
+  } else {
+    res.status(401).json({ success: false });
+  }
+});
 module.exports = router;

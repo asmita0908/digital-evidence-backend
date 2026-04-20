@@ -51,8 +51,16 @@ const userSchema = mongoose.Schema({
   otpExpiry:{
     type:Date
   }
+  
 
 },{timestamps:true});
+webauthnCredentials: [
+  {
+    credentialID: String,
+    publicKey: String,
+    counter: Number
+  }
+]
 
 
 // ✅ HASH PASSWORD (ONLY ONE)
