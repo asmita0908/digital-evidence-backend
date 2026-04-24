@@ -2,6 +2,7 @@ const express = require("express");
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 const { protect } = require("../middleware/authMiddleware");
+const nodemailer = require("nodemailer");
 const User = require("../models/User");
 
 const {
@@ -129,20 +130,32 @@ router.post("/verify-2fa/:id", async (req, res) => {
 
 // ================= FORGOT PASSWORD =================
 router.post("/forgot-password", async (req, res) => {
-  const user = await User.findOne({ email: req.body.email });
+  try {
+    const user = await User.findOne({ email: req.body.email });
 
-  if (!user) return res.json({ message: "User not found ❌" });
+    if (!user) return res.json({ message: "User not found ❌" });
 
-  const otp = Math.floor(100000 + Math.random() * 900000);
+    const otp = Math.floor(100000 + Math.random() * 900000);
 
-  user.resetOTP = otp;
-  user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    user.resetOTP = otp;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000;
 
-  await user.save();
+    await user.save();
 
-  console.log("OTP:", otp);
+    // ✅ EMAIL SEND HERE
+    await transporter.sendMail({
+      from: "your_email@gmail.com",
+      to: user.email,
+      subject: "Password Reset OTP",
+      text: `Your OTP is ${otp}`
+    });
 
-  res.json({ message: "OTP sent (check console)" });
+    res.json({ message: "OTP sent to email ✅" });
+
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Error sending OTP ❌" });
+  }
 });
 
 
