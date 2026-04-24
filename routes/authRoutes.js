@@ -146,13 +146,13 @@ router.post("/forgot-password", async (req, res) => {
     const otp = Math.floor(100000 + Math.random() * 900000);
 
     user.resetOTP = otp;
-    user.otpExpiry = Date.now() + 5 * 60 * 1000;
+    user.otpExpiry = Date.now() + 5 * 60 * 1000; // 5 min
+    user.otpAttempts = 0; // 🔥 RESET ATTEMPTS
 
     await user.save();
 
-    // ✅ EMAIL SEND HERE
     await transporter.sendMail({
-      from: "your_email@gmail.com",
+      from: process.env.EMAIL,
       to: user.email,
       subject: "Password Reset OTP",
       text: `Your OTP is ${otp}`
@@ -166,20 +166,37 @@ router.post("/forgot-password", async (req, res) => {
   }
 });
 
-
 // ================= VERIFY OTP =================
 router.post("/verify-otp", async (req, res) => {
   const { email, otp } = req.body;
 
   const user = await User.findOne({ email });
 
-  if (
-    !user ||
-    user.resetOTP != otp ||
-    user.otpExpiry < Date.now()
-  ) {
-    return res.json({ message: "Invalid OTP ❌" });
+  if (!user) {
+    return res.json({ message: "User not found ❌" });
   }
+
+  // 🔥 LIMIT CHECK
+  if (user.otpAttempts >= 3) {
+    return res.json({ message: "Too many attempts ❌ Resend OTP" });
+  }
+
+  // 🔥 WRONG OTP
+  if (user.resetOTP != otp) {
+    user.otpAttempts += 1;
+    await user.save();
+
+    return res.json({ message: `Invalid OTP ❌ (${user.otpAttempts}/3)` });
+  }
+
+  // 🔥 EXPIRED
+  if (user.otpExpiry < Date.now()) {
+    return res.json({ message: "OTP expired ❌" });
+  }
+
+  // ✅ SUCCESS
+  user.otpAttempts = 0;
+  await user.save();
 
   res.json({ message: "OTP verified ✅" });
 });
@@ -200,8 +217,11 @@ router.post("/reset-password", async (req, res) => {
   }
 
   user.password = newPassword;
+
+  // 🔥 CLEAR ALL
   user.resetOTP = null;
   user.otpExpiry = null;
+  user.otpAttempts = 0;
 
   await user.save();
 

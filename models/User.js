@@ -51,6 +51,10 @@ const userSchema = mongoose.Schema({
   otpExpiry: {
     type: Date
   },
+  otpAttempts: {           // 🔥 NEW
+  type: Number,
+  default: 0
+  },
 
   // 🔥 FIXED (IMPORTANT)
   webauthnCredentials: [
