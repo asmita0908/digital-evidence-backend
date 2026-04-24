@@ -18,6 +18,14 @@ const {
 } = require("@simplewebauthn/server");
 
 const router = express.Router();
+// ================= EMAIL SETUP =================
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL,
+    pass: process.env.PASS
+  }
+});
 
 
 // ================= REGISTER =================
